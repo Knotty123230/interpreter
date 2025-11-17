@@ -1,6 +1,8 @@
 package lexer
 
-import "interpreter/token"
+import (
+	"interpreter/token"
+)
 
 type Lexer struct {
 	input        string
@@ -31,8 +33,29 @@ func (l *Lexer) NextToken() token.Token {
 	l.skipWhitespaces()
 
 	switch l.ch {
+	case '!':
+		if l.peekChar() == '=' {
+			tok = l.makeTwoCharToken(token.NOT_EQ)
+		} else {
+			tok = newToken(token.BANG, l.ch)
+		}
+
+	case '*':
+		tok = newToken(token.ASTERISK, l.ch)
+	case '-':
+		tok = newToken(token.MINUS, l.ch)
+	case '/':
+		tok = newToken(token.SLASH, l.ch)
+	case '<':
+		tok = newToken(token.LT, l.ch)
+	case '>':
+		tok = newToken(token.GT, l.ch)
 	case '=':
-		tok = newToken(token.ASSIGN, l.ch)
+		if l.peekChar() == '=' {
+			tok = l.makeTwoCharToken(token.EQ)
+		} else {
+			tok = newToken(token.ASSIGN, l.ch)
+		}
 	case ';':
 		tok = newToken(token.SEMICOLON, l.ch)
 	case '(':
@@ -68,6 +91,16 @@ func (l *Lexer) NextToken() token.Token {
 	return tok
 }
 
+func (l *Lexer) makeTwoCharToken(tokType token.TokenType) token.Token {
+	ch := l.ch
+	l.readChar()
+	literal := string(ch) + string(l.ch)
+	return token.Token{
+		Type:    tokType,
+		Literal: literal,
+	}
+}
+
 func (l *Lexer) readNumber() string {
 	pos := l.position
 
@@ -75,6 +108,14 @@ func (l *Lexer) readNumber() string {
 		l.readChar()
 	}
 	return l.input[pos:l.position]
+}
+
+func (l *Lexer) peekChar() byte {
+	if l.readPosition >= len(l.input) {
+		return 0
+	} else {
+		return l.input[l.readPosition]
+	}
 }
 
 func isDigit(ch byte) bool {
