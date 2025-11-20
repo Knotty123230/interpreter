@@ -5,6 +5,7 @@ import (
 	"interpreter/ast"
 	"interpreter/lexer"
 	"interpreter/token"
+	"strconv"
 )
 
 type Parser struct {
@@ -34,8 +35,8 @@ func (p *Parser) NextToken() {
 
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
-		l: l,
-		// errors: []string{},
+		l:      l,
+		errors: []string{},
 	}
 
 	p.NextToken()
@@ -44,8 +45,23 @@ func New(l *lexer.Lexer) *Parser {
 
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
 	p.registerPrefixFn(token.IDENT, p.parseIdentifier)
+	p.registerPrefixFn(token.INT, p.parseIntegerLiteral)
+	p.registerPrefixFn(token.MINUS, p.parsePrefixExpression)
+	p.registerPrefixFn(token.BANG, p.parsePrefixExpression)
 
 	return p
+}
+
+func (p *Parser) parsePrefixExpression() ast.Expression {
+	exp := &ast.PrefixExpression{
+		Token:    p.currToken,
+		Operator: p.currToken.Literal,
+	}
+
+	p.NextToken()
+
+	exp.Right = p.parseExpression(PREFIX)
+	return exp
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
@@ -85,7 +101,22 @@ func (p *Parser) parseStatement() ast.Statement {
 	default:
 		return p.parseExpressionStatement()
 	}
+}
 
+func (p *Parser) parseIntegerLiteral() ast.Expression {
+	lit := &ast.IntegerLiteral{
+		Token: p.currToken,
+	}
+
+	int, err := strconv.ParseInt(lit.TokenLiteral(), 0, 64)
+	if err != nil {
+		msg := fmt.Sprintf("could not parse %q as integer", p.currToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	lit.Value = int
+	return lit
 }
 
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
@@ -105,10 +136,16 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	prefix := p.prefixParseFns[p.currToken.Type]
 	if prefix == nil {
+		p.noPrefixParseFnError(p.currToken.Type)
 		return nil
 	}
 	leftExpr := prefix()
 	return leftExpr
+}
+
+func (p *Parser) noPrefixParseFnError(t token.TokenType) {
+	msg := fmt.Sprintf("no prefix parse function found for token type %s found", t)
+	p.errors = append(p.errors, msg)
 }
 
 func (p *Parser) parseReturnStatement() ast.Statement {
