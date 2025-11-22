@@ -44,15 +44,39 @@ func New(l *lexer.Lexer) *Parser {
 	p.NextToken()
 
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
+
+	//prefix
 	p.registerPrefixFn(token.IDENT, p.parseIdentifier)
 	p.registerPrefixFn(token.INT, p.parseIntegerLiteral)
 	p.registerPrefixFn(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefixFn(token.BANG, p.parsePrefixExpression)
+	p.registerPrefixFn(token.TRUE, p.parseBoolean)
+	p.registerPrefixFn(token.FALSE, p.parseBoolean)
+
+	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	//infix
+	p.registerInfixFn(token.ASTERISK, p.parseInfixExpression)
+	p.registerInfixFn(token.SLASH, p.parseInfixExpression)
+	p.registerInfixFn(token.MINUS, p.parseInfixExpression)
+	p.registerInfixFn(token.PLUS, p.parseInfixExpression)
+	p.registerInfixFn(token.EQ, p.parseInfixExpression)
+	p.registerInfixFn(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfixFn(token.LT, p.parseInfixExpression)
+	p.registerInfixFn(token.GT, p.parseInfixExpression)
 
 	return p
 }
 
+func (p *Parser) parseBoolean() ast.Expression {
+	boolean := &ast.Boolean{
+		Token: p.currToken,
+		Value: bool(p.currTokenIs(token.TRUE)),
+	}
+	return boolean
+}
+
 func (p *Parser) parsePrefixExpression() ast.Expression {
+	defer untrace(trace("parsePrefixExpression"))
 	exp := &ast.PrefixExpression{
 		Token:    p.currToken,
 		Operator: p.currToken.Literal,
@@ -104,6 +128,7 @@ func (p *Parser) parseStatement() ast.Statement {
 }
 
 func (p *Parser) parseIntegerLiteral() ast.Expression {
+	defer untrace(trace("parseIntegerLiteral"))
 	lit := &ast.IntegerLiteral{
 		Token: p.currToken,
 	}
@@ -120,6 +145,7 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 }
 
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	defer untrace(trace("parseExpressionStatement"))
 	stmt := &ast.ExpressionStatement{
 		Token: p.currToken,
 	}
@@ -134,12 +160,22 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 }
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
+	defer untrace(trace("parseExpression"))
 	prefix := p.prefixParseFns[p.currToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.currToken.Type)
 		return nil
 	}
 	leftExpr := prefix()
+
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infix := p.infixParseFns[p.peekToken.Type]
+		if infix == nil {
+			return leftExpr
+		}
+		p.NextToken()
+		leftExpr = infix(leftExpr)
+	}
 	return leftExpr
 }
 
@@ -217,3 +253,45 @@ const (
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
 )
+
+var precedences = map[token.TokenType]int{
+	token.EQ:       EQUALS,
+	token.NOT_EQ:   EQUALS,
+	token.LT:       LESSGREATER,
+	token.GT:       LESSGREATER,
+	token.PLUS:     SUM,
+	token.MINUS:    SUM,
+	token.SLASH:    PRODUCT,
+	token.ASTERISK: PRODUCT,
+}
+
+func (p *Parser) peekPrecedence() int {
+	if prec, ok := precedences[p.peekToken.Type]; ok {
+		return prec
+	}
+	return LOWEST
+}
+
+func (p *Parser) currPrecedence() int {
+	if p, ok := precedences[p.currToken.Type]; ok {
+		return p
+	}
+	return LOWEST
+}
+
+func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	defer untrace(trace("parseInfixExpression"))
+	exp := &ast.InfixExpression{
+		Token:    p.currToken,
+		Operator: p.currToken.Literal,
+		Left:     left,
+	}
+
+	precedence := p.currPrecedence()
+
+	p.NextToken()
+
+	exp.Right = p.parseExpression(precedence)
+
+	return exp
+}

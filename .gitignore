@@ -1,0 +1,6 @@
+.vscode/launch.json
+parser/parser.go
+.idea/modules.xml
+.idea/interpreter-golang.iml
+.idea/vcs.xml
+.idea/.gitignore
