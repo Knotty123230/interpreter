@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"interpreter/token"
+	"strings"
 )
 
 type Node interface {
@@ -205,4 +206,112 @@ func (b *Boolean) String() string {
 
 func (b *Boolean) TokenLiteral() string {
 	return b.Token.Literal
+}
+
+type IfExpression struct {
+	Token       token.Token
+	Condition   Expression
+	Consequence *BlockStatement
+	Alternative *BlockStatement
+}
+
+func (i *IfExpression) expressionNode() {}
+func (i *IfExpression) TokenLiteral() string {
+	return i.Token.Literal
+}
+
+func (i *IfExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("if")
+	out.WriteString(" ")
+	out.WriteString(i.Condition.String())
+	out.WriteString(i.Consequence.String())
+	if i.Alternative != nil {
+		out.WriteString(i.Alternative.String())
+	}
+
+	return out.String()
+}
+
+type BlockStatement struct {
+	Token      token.Token
+	Statements []Statement
+}
+
+func (bs *BlockStatement) String() string {
+	var out bytes.Buffer
+	for _, val := range bs.Statements {
+		out.WriteString(val.String())
+	}
+	return out.String()
+}
+
+func (bs *BlockStatement) TokenLiteral() string {
+	return bs.Token.Literal
+}
+
+func (bs *BlockStatement) statementNode() {}
+
+type FunctionLiteral struct {
+	Token      token.Token
+	Parameters []*Identifier
+	Body       BlockStatement
+}
+
+func (fl *FunctionLiteral) expressionNode() {
+
+}
+
+func (fl *FunctionLiteral) String() string {
+	var out bytes.Buffer
+
+	params := []string{}
+
+	for _, param := range fl.Parameters {
+		params = append(params, param.String())
+	}
+
+	out.WriteString(fl.TokenLiteral())
+	out.WriteString("(")
+	out.WriteString(strings.Join(params, ","))
+	out.WriteString(") ")
+	out.WriteString(fl.Body.String())
+
+	return out.String()
+}
+
+func (fl *FunctionLiteral) TokenLiteral() string {
+	return fl.Token.Literal
+}
+
+type CallExpression struct {
+	Token     token.Token
+	Function  Expression //це буде або функція або ідентіфаєр
+	Arguments []Expression
+}
+
+func (ce *CallExpression) expressionNode() {}
+
+func (ce *CallExpression) String() string {
+	var out bytes.Buffer
+
+	args := []string{}
+
+	for _, arg := range ce.Arguments {
+		args = append(args, arg.String())
+	}
+
+	out.WriteString(ce.Function.String())
+
+	out.WriteString("(")
+	out.WriteString(strings.Join(args, ", "))
+	out.WriteString(")")
+
+	return out.String()
+
+}
+
+func (ce *CallExpression) TokenLiteral() string {
+	return ce.Token.Literal
 }
